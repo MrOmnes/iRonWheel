@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Panel Admin</h1>
+    <button onclick="spinWheel()">Tourner la roue</button>
+    <button onclick="resetWheel()">Réinitialiser la roue</button>
+    <script>
+        // Initialise la connexion WebSocket
+        const socket = io("http://localhost:3000");
+
+        // Événement de connexion réussi
+        socket.on("connect", () => {
+            console.log("Connecté au serveur WebSocket !");
+        });
+
+        // Événement d'erreur de connexion
+        socket.on("connect_error", (err) => {
+            console.error("Erreur de connexion WebSocket : ", err);
+        });
+
+        // Fonction pour envoyer la commande "spin"
+        function spinWheel() {
+            socket.emit("spin");
+            console.log("Commande 'spin' envoyée au serveur.");
+        }
+
+        // Fonction pour envoyer la commande "reset"
+        function resetWheel() {
+            socket.emit("reset");
+            console.log("Commande 'reset' envoyée au serveur.");
+        }
+    </script>
+</body>
+</html>

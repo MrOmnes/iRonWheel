@@ -1,0 +1,120 @@
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="/js/Winwheel.min.js"></script>
+
+<script>
+  // Initialisation de la roue
+  document.addEventListener("DOMContentLoaded", function () {
+    let bets = {}; // Stocke les paris reçus
+
+    const socket = io("http://localhost:3000");
+
+    // Écoute les paris envoyés par le bot
+    socket.on("updateBets", (newBets) => {
+      console.log("Mises reçues :", newBets);
+      Object.assign(bets, newBets); // Met à jour les paris locaux
+    });
+
+    let myWheel = new Winwheel({
+      canvasId: "wheelCanvas",
+      numSegments: 24,
+      segments: [
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#eae56f", text: "5" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#eae56f", text: "5" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#eae56f", text: "5" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#89f26e", text: "10" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#7de6ef", text: "1" },
+        { fillStyle: "#FF69B4", text: "2" },
+        { fillStyle: "#eae56f", text: "5" },
+        { fillStyle: "#89f26e", text: "10" },
+        { fillStyle: "#ac16df", text: "20" },
+        { fillStyle: "#FF0000", text: "BONUS" },
+      ],
+      animation: {
+        type: "spinToStop",
+        duration: 5,
+        spins: 8,
+        callbackFinished: onWheelStop,
+      },
+    });
+
+    function spinWheel() {
+      myWheel.startAnimation();
+    }
+
+    function onWheelStop() {
+      const segment = myWheel.getIndicatedSegment();
+      console.log(`Segment gagnant : ${segment.text}`);
+
+      const winners = Object.keys(bets).filter((username) => {
+        console.log(
+          `Vérification : ${username} a parié ${bets[username]}, segment gagnant : ${segment.text}`
+        );
+        return String(bets[username]) === String(segment.text);
+      });
+
+      // Envoie le résultat du spin au serveur via WebSocket
+      socket.emit("spinResult", {
+        segment,
+        bets,
+      });
+
+      // Réinitialisation locale des paris
+      bets = {};
+      socket.emit("updateBets", bets); // Mettre à jour côté client
+
+      resetWheel();
+    }
+
+    function resetWheel() {
+      myWheel.stopAnimation(false);
+      bets = {};
+      socket.emit("updateBets", bets); // Mettre à jour côté client
+      myWheel.rotationAngle = 0;
+      myWheel.draw();
+    }
+
+    document
+      .querySelector('button[onclick="spinWheel()"]')
+      .addEventListener("click", spinWheel);
+    document
+      .querySelector('button[onclick="resetWheel()"]')
+      .addEventListener("click", resetWheel);
+
+    socket.on("spin", () => {
+    console.log("Commande 'spin' reçue !");
+});
+    socket.on("reset", resetWheel);
+  });
+</script>
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roue de la Fortune</title>
+  </head>
+  <body>
+    <canvas id="wheelCanvas" width="500" height="500"></canvas>
+    <button onclick="spinWheel()">Tourner la roue</button>
+    <button onclick="resetWheel()">Réinitialiser la roue</button>
+    <script>
+      // Code JavaScript pour la roue ici
+    </script>
+  </body>
+</html>
