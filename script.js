@@ -56,16 +56,19 @@ client.on('message', (channel, tags, message, self) => {
         const username = tags['display-name']; // Nom de l'utilisateur
 
         if ([1, 2, 5, 10, 20].includes(segment)) {
+            // Vérifie si l'utilisateur a déjà parié
+            if (bets[username]) {
+                client.say(channel, `${username}, vous avez déjà parié et ne pouvez pas parier à nouveau.`);
+                return;
+            }
+
             // Valide les points disponibles pour l'utilisateur
             validateUserPoints(username, amount)
                 .then((isValid) => {
                     if (isValid) {
                         // Enregistre le pari
-                        if (!bets[username]) {
-                            bets[username] = {};
-                        }
-                        deleteUserPoints(username, amount);
-                        bets[username][segment] = amount; // Enregistre la mise pour ce segment
+                        bets[username] = { segment, amount }; // Stocke le segment et la mise
+                        deleteUserPoints(username, amount); // Retire les points de l'utilisateur
 
                         console.log(`${username} a parié ${amount} points sur le ${segment}.`);
                         client.say(channel, `${username}, vous avez parié ${amount} points sur le ${segment}.`);
@@ -90,57 +93,76 @@ client.on('message', (channel, tags, message, self) => {
 io.on('connection', (socket) => {
     console.log('Client connecté au WebSocket.');
 
-    socket.on('spinResult', async ({ segment, bets }) => {
-        console.log(`Segment gagnant reçu : ${segment.text}`);
-        console.log('Paris actuels :', bets);
-
-        // Identifier les gagnants
-        const winners = Object.keys(bets).filter((username) => {
-            // Convertir le numéro du segment en chaîne pour comparaison
-            const segmentKey = String(segment.text);
-            return bets[username][segmentKey]; // Vérifie si l'utilisateur a parié sur ce segment
-        });
-
-        if (winners.length > 0) {
-            const winnerMessage = winners.map((winner) => `${winner}`).join(', ');
-            const message = `🎉 Félicitations aux gagnants : ${winnerMessage} ! Le segment gagnant était "${segment.text}". 🎯`;
-
-            // Envoie un message dans le chat Twitch
-            client.say('mromnes_', message);
-
-            // Calcul des gains pour chaque gagnant
-            // Calcul des gains pour chaque gagnant
-for (const winner of winners) {
-    const betAmount = bets[winner][String(segment.text)]; // Mise de l'utilisateur
-    const multiplier = parseInt(segment.text, 10); // Multiplieur basé sur le segment gagnant
-    const totalPoints = betAmount * multiplier + betAmount; // Gains totaux (multiplicateur + remboursement)
-
-    try {
-        await addPointsToUser(winner, totalPoints);
-        console.log(`Points attribués à ${winner}: ${totalPoints}`);
-    } catch (error) {
-        console.error(`Erreur lors de l'attribution des points à ${winner}.`);
-    }
-}
-} else {
-    const noWinnerMessage = `😢 Aucun gagnant cette fois. Le segment gagnant était "${segment.text}".`;
-    client.say('mromnes_', noWinnerMessage);
-
-    console.log(noWinnerMessage);
-}
-
-    // Réinitialiser les paris
-    bets = {};
-    io.emit('updateBets', bets); // Mettre à jour côté client
-});
-
-// Réinitialisation des paris via WebSocket
-    socket.on('resetBets', () => {
-        bets = {};
-        console.log('Paris réinitialisés.');
-        io.emit('updateBets', bets); // Met à jour les clients
+    // Relaye l'événement "spin" à tous les clients
+    socket.on("spin", () => {
+        console.log('Commande "spin" reçue depuis le panel admin !');
+        io.emit("spin"); // Relaye l'événement à tous les clients
     });
+
+    socket.on("reset", () => {
+        console.log('Commande "reset" reçue depuis le panel admin !');
+        bets = {}; // Réinitialisation globale de l'objet bets
+        io.emit("updateBets", bets); // Notifie tous les clients
+        console.log("Paris réinitialisés globalement.");
+    });
+
+    socket.on("spinResult", async ({ segment }) => {
+        console.log(`Segment gagnant reçu : ${segment.text}`);
+        console.log("Paris actuels avant réinitialisation :", bets);
+    
+        let winners;
+    
+        if (segment.text === "BONUS") {
+            // BONUS : Tout le monde gagne, quelle que soit leur mise
+            winners = Object.keys(bets); // Récupère tous les utilisateurs ayant parié
+        } else {
+            // Identifier les gagnants pour les autres segments
+            winners = Object.keys(bets).filter((username) => {
+                return bets[username].segment === parseInt(segment.text, 10); // Vérifie si l'utilisateur a parié sur le segment gagnant
+            });
+        }
+    
+        if (winners.length > 0) {
+            const winnerMessage = winners.map((winner) => `${winner}`).join(", ");
+            const message = `🎉 Félicitations aux gagnants : ${winnerMessage} ! Le segment gagnant était "${segment.text}". 🎯`;
+    
+            // Envoie un message dans le chat Twitch
+            client.say("mromnes_", message);
+    
+            // Calcul des gains pour chaque gagnant
+            for (const winner of winners) {
+                const betAmount = bets[winner].amount; // Mise de l'utilisateur
+                const multiplier = segment.text === "BONUS"
+                    ? (Math.random() < 0.5 ? 20 : 100) // Multiplicateur aléatoire pour BONUS
+                    : parseInt(segment.text, 10); // Multiplieur basé sur le segment gagnant
+                const totalPoints = betAmount * multiplier;
+    
+                console.log(
+                    `${winner} gagne ${totalPoints} points (mise : ${betAmount}, multiplicateur : ${multiplier}).`
+                );
+    
+                try {
+                    await addPointsToUser(winner, totalPoints);
+                    console.log(`Points attribués à ${winner}: ${totalPoints}`);
+                } catch (error) {
+                    console.error(`Erreur lors de l'attribution des points à ${winner}.`);
+                }
+            }
+        } else {
+            const noWinnerMessage = `😢 Aucun gagnant cette fois. Le segment gagnant était "${segment.text}".`;
+            client.say("mromnes_", noWinnerMessage);
+    
+            console.log(noWinnerMessage);
+        }
+    
+        // Réinitialiser les paris globalement après traitement
+        bets = {};
+        io.emit("updateBets", bets); // Mettre à jour côté client
+        console.log("Paris réinitialisés après spinResult.");
+    });    
 });
+
+    
 
 async function addPointsToUser(viewer_identifier, action_value) {
     try {

@@ -94,11 +94,15 @@
     document
       .querySelector('button[onclick="resetWheel()"]')
       .addEventListener("click", resetWheel);
-
-    socket.on("spin", () => {
-    console.log("Commande 'spin' reçue !");
+      
+socket.on("spin", () => {
+    console.log("Commande 'spin' reçue depuis le serveur !");
+    spinWheel(); // Démarre la roue
+    
 });
-    socket.on("reset", resetWheel);
+
+socket.on("reset", resetWheel); // Réinitialise la roue si "reset" est reçu
+
   });
 </script>
 
@@ -111,8 +115,8 @@
   </head>
   <body>
     <canvas id="wheelCanvas" width="500" height="500"></canvas>
-    <button onclick="spinWheel()">Tourner la roue</button>
-    <button onclick="resetWheel()">Réinitialiser la roue</button>
+    <button onclick="spinWheel()" style="display: none">Tourner la roue</button>
+    <button onclick="resetWheel()" style="display: none">Réinitialiser la roue</button>
     <script>
       // Code JavaScript pour la roue ici
     </script>
