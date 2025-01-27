@@ -14,6 +14,7 @@ dotenv.config();
 const API_KEY = process.env.API_KEY;
 const TMI_USERNAME = process.env.TMI_USERNAME;
 const TMI_PASSWORD = process.env.TMI_PASSWORD;
+const CHANNEL = "iron_iridium"
 
 // Port unique pour le serveur
 const PORT = 3000;
@@ -113,8 +114,10 @@ io.on('connection', (socket) => {
         let winners;
     
         if (segment.text === "BONUS") {
-            // BONUS : Tout le monde gagne, quelle que soit leur mise
-            winners = Object.keys(bets); // Récupère tous les utilisateurs ayant parié
+            // BONUS : Seuls ceux qui ont parié sur BONUS gagnent
+            winners = Object.keys(bets).filter((username) => {
+                return bets[username].segment === "BONUS"; // Vérifie si l'utilisateur a parié sur BONUS
+            });
         } else {
             // Identifier les gagnants pour les autres segments
             winners = Object.keys(bets).filter((username) => {
@@ -127,14 +130,14 @@ io.on('connection', (socket) => {
             const message = `🎉 Félicitations aux gagnants : ${winnerMessage} ! Le segment gagnant était "${segment.text}". 🎯`;
     
             // Envoie un message dans le chat Twitch
-            client.say("mromnes_", message);
+            client.say(CHANNEL, message);
     
             // Calcul des gains pour chaque gagnant
             for (const winner of winners) {
-                const betAmount = bets[winner].amount; // Mise de l'utilisateur
-                const multiplier = segment.text === "BONUS"
+                const multiplier = segment.text === "BONUS" 
                     ? (Math.random() < 0.5 ? 20 : 100) // Multiplicateur aléatoire pour BONUS
                     : parseInt(segment.text, 10); // Multiplieur basé sur le segment gagnant
+                const betAmount = bets[winner].amount; // Mise de l'utilisateur
                 const totalPoints = betAmount * multiplier;
     
                 console.log(
@@ -150,7 +153,7 @@ io.on('connection', (socket) => {
             }
         } else {
             const noWinnerMessage = `😢 Aucun gagnant cette fois. Le segment gagnant était "${segment.text}".`;
-            client.say("mromnes_", noWinnerMessage);
+            client.say(CHANNEL, noWinnerMessage);
     
             console.log(noWinnerMessage);
         }
@@ -159,7 +162,7 @@ io.on('connection', (socket) => {
         bets = {};
         io.emit("updateBets", bets); // Mettre à jour côté client
         console.log("Paris réinitialisés après spinResult.");
-    });    
+    });     
 });
 
     
