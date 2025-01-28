@@ -50,13 +50,14 @@ client.on('message', (channel, tags, message, self) => {
     if (self) return;
 
     // Vérifie si le message correspond à une commande de pari avec montant
-    const match = message.match(/^!(\d+)\s+(\d+)$/); // Capture le numéro et le montant
+    const match = message.match(/^!(\w+)\s+(\d+)$/); // Capture le segment et le montant
     if (match) {
-        const segment = parseInt(match[1], 10); // Numéro du segment (1, 2, 5, 10, 20)
+        const segment = match[1].toUpperCase(); // Numéro du segment ou "BONUS" (en majuscules)
         const amount = parseInt(match[2], 10); // Montant parié
         const username = tags['display-name']; // Nom de l'utilisateur
 
-        if ([1, 2, 5, 10, 20].includes(segment)) {
+        // Valide si le segment est un nombre valide ou "BONUS"
+        if ([1, 2, 5, 10, 20].map(String).includes(segment) || segment === "BONUS") {
             // Vérifie si l'utilisateur a déjà parié
             if (bets[username]) {
                 client.say(channel, `${username}, vous avez déjà parié et ne pouvez pas parier à nouveau.`);
@@ -68,11 +69,14 @@ client.on('message', (channel, tags, message, self) => {
                 .then((isValid) => {
                     if (isValid) {
                         // Enregistre le pari
-                        bets[username] = { segment, amount }; // Stocke le segment et la mise
+                        bets[username] = {
+                            segment: segment === "BONUS" ? "BONUS" : parseInt(segment, 10),
+                            amount: amount,
+                        };
                         deleteUserPoints(username, amount); // Retire les points de l'utilisateur
 
-                        console.log(`${username} a parié ${amount} points sur le ${segment}.`);
-                        client.say(channel, `${username}, vous avez parié ${amount} points sur le ${segment}.`);
+                        console.log(`${username} a parié ${amount} points sur ${segment}.`);
+                        client.say(channel, `${username}, vous avez parié ${amount} points sur ${segment}.`);
 
                         // Met à jour le frontend
                         io.emit('updateBets', bets);
@@ -85,7 +89,7 @@ client.on('message', (channel, tags, message, self) => {
                     client.say(channel, `${username}, une erreur est survenue lors de la validation de votre pari.`);
                 });
         } else {
-            client.say(channel, `${username}, segment invalide. Pariez sur 1, 2, 5, 10 ou 20.`);
+            client.say(channel, `${username}, segment invalide. Pariez sur 1, 2, 5, 10, 20 ou BONUS.`);
         }
     }
 });
